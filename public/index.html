@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Two Player Snake</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Two Player Snake</h1>
+        <p class="tagline">One player is the snake. The other is the apple.</p>
+      </header>
+
+      <section id="join-screen" class="panel">
+        <h2>Join a game</h2>
+        <label>
+          Server address
+          <input
+            id="server-url"
+            type="text"
+            placeholder="http://localhost:3000"
+            autocomplete="off"
+          />
+        </label>
+        <div class="role-picker">
+          <label class="role-option">
+            <input type="radio" name="role" value="snake" checked />
+            <span>Snake</span>
+            <small>WASD or arrow keys</small>
+          </label>
+          <label class="role-option">
+            <input type="radio" name="role" value="apple" />
+            <span>Apple</span>
+            <small>IJKL or arrow keys</small>
+          </label>
+        </div>
+        <button id="join-btn" type="button">Connect</button>
+        <p id="join-error" class="error hidden"></p>
+      </section>
+
+      <section id="game-screen" class="hidden">
+        <div class="hud">
+          <div class="hud-item">
+            <span class="label">You are</span>
+            <span id="role-badge" class="badge"></span>
+          </div>
+          <div class="hud-item">
+            <span class="label">Score</span>
+            <span id="score">0</span>
+          </div>
+          <div class="hud-item lobby-status">
+            <span id="snake-status" class="dot offline"></span> Snake
+            <span id="apple-status" class="dot offline"></span> Apple
+          </div>
+        </div>
+
+        <canvas id="board" width="600" height="400"></canvas>
+
+        <div id="overlay" class="overlay hidden">
+          <p id="overlay-text"></p>
+          <button id="restart-btn" type="button">Play again</button>
+        </div>
+
+        <p id="controls-hint" class="hint"></p>
+      </section>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/client.js"></script>
+  </body>
+</html>

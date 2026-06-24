@@ -1,0 +1,237 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #0f1419;
+  color: #e7ecf1;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0;
+  color: #8b9aab;
+}
+
+.panel {
+  background: #1a2332;
+  border: 1px solid #2a3648;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: #b8c4d4;
+}
+
+input[type="text"] {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f1419;
+  color: inherit;
+  font-size: 1rem;
+}
+
+.role-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.role-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.role-option:has(input:checked) {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.role-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.role-option span {
+  font-weight: 600;
+}
+
+.role-option small {
+  color: #8b9aab;
+}
+
+button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #4ade80;
+  color: #052e16;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #86efac;
+}
+
+.error {
+  margin: 0.75rem 0 0;
+  color: #f87171;
+  font-size: 0.9rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.hud-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.label {
+  color: #8b9aab;
+  font-size: 0.85rem;
+}
+
+.badge {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge.snake {
+  background: #166534;
+  color: #bbf7d0;
+}
+
+.badge.apple {
+  background: #991b1b;
+  color: #fecaca;
+}
+
+.badge.spectator {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.lobby-status {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #8b9aab;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.25rem;
+  margin-left: 0.75rem;
+}
+
+.dot:first-child {
+  margin-left: 0;
+}
+
+.dot.online {
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade80;
+}
+
+.dot.offline {
+  background: #475569;
+}
+
+#board {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  border: 2px solid #2a3648;
+  border-radius: 8px;
+  background: #111827;
+}
+
+.overlay {
+  position: relative;
+  margin-top: -120px;
+  margin-bottom: 60px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.overlay:not(.hidden) {
+  pointer-events: auto;
+}
+
+.overlay p {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.overlay button {
+  max-width: 200px;
+  margin: 0 auto;
+}
+
+.hint {
+  margin: 0.75rem 0 0;
+  color: #8b9aab;
+  font-size: 0.9rem;
+  text-align: center;
+}
