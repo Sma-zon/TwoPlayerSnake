@@ -19,6 +19,20 @@ body {
 header {
   text-align: center;
   margin-bottom: 2rem;
+  position: relative;
+}
+
+.version-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0 0 10px 0;
+  background: rgba(74, 222, 128, 0.12);
+  color: #a7f3d0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 h1 {
@@ -163,6 +177,11 @@ button:hover {
   color: #fecaca;
 }
 
+.badge.local {
+  background: #334155;
+  color: #cbd5e1;
+}
+
 .badge.spectator {
   background: #334155;
   color: #cbd5e1;
@@ -196,6 +215,11 @@ button:hover {
   background: #475569;
 }
 
+.board-wrap {
+  position: relative;
+  max-width: 600px;
+}
+
 #board {
   display: block;
   width: 100%;
@@ -203,30 +227,110 @@ button:hover {
   border: 2px solid #2a3648;
   border-radius: 8px;
   background: #111827;
+  outline: none;
+}
+
+#board:focus {
+  border-color: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.25);
+}
+
+.mode-picker,
+.settings-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.mode-option,
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #0f1419;
+}
+
+.mode-option input,
+.settings-row input {
+  margin: 0;
+}
+
+#settings-btn {
+  width: auto;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+#settings-screen label {
+  margin-bottom: 0.75rem;
+}
+
+#settings-screen select,
+#settings-screen input[type="color"] {
+  margin-top: 0.35rem;
+  display: block;
+}
+
+#settings-screen .settings-actions button {
+  width: auto;
+}
+
+.hint {
+  margin: 0.75rem 0 0;
+  color: #8b9aab;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+#cooldown-text {
+  margin-top: 0.35rem;
+  color: #fbbf24;
+}
+
+#status-text {
+  margin-top: 0.35rem;
+  color: #93c5fd;
+  white-space: pre-wrap;
 }
 
 .overlay {
-  position: relative;
-  margin-top: -120px;
-  margin-bottom: 60px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  border-radius: 8px;
+  background: rgba(15, 20, 25, 0.82);
   text-align: center;
   pointer-events: none;
+  padding: 1rem;
 }
 
-.overlay:not(.hidden) {
+.overlay.waiting {
+  pointer-events: auto;
+}
+
+.overlay:not(.hidden):not(.waiting) {
   pointer-events: auto;
 }
 
 .overlay p {
-  margin: 0 0 1rem;
-  font-size: 1.25rem;
+  margin: 0;
+  font-size: 1.1rem;
   font-weight: 600;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .overlay button {
-  max-width: 200px;
-  margin: 0 auto;
+  width: auto;
+  min-width: 200px;
+  padding: 0.65rem 1rem;
 }
 
 .hint {

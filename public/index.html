@@ -9,13 +9,24 @@
   <body>
     <div class="app">
       <header>
+        <div class="version-badge">v1.0.5</div>
         <h1>Two Player Snake</h1>
         <p class="tagline">One player is the snake. The other is the apple.</p>
       </header>
 
       <section id="join-screen" class="panel">
         <h2>Join a game</h2>
-        <label>
+        <div class="mode-picker">
+          <label class="mode-option">
+            <input type="radio" name="mode" value="network" checked />
+            <span>Network</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="mode" value="local" />
+            <span>Local</span>
+          </label>
+        </div>
+        <label id="server-address-label">
           Server address
           <input
             id="server-url"
@@ -23,6 +34,17 @@
             placeholder="http://localhost:3000"
             autocomplete="off"
           />
+        </label>
+        <label id="lobby-code-label">
+          Lobby code
+          <input
+            id="lobby-code"
+            type="text"
+            placeholder="Leave blank to create a lobby"
+            autocomplete="off"
+            maxlength="4"
+          />
+          <small>Enter a 4-character code to join an existing game.</small>
         </label>
         <div class="role-picker">
           <label class="role-option">
@@ -33,7 +55,7 @@
           <label class="role-option">
             <input type="radio" name="role" value="apple" />
             <span>Apple</span>
-            <small>IJKL or arrow keys</small>
+            <small>Arrow keys</small>
           </label>
         </div>
         <button id="join-btn" type="button">Connect</button>
@@ -50,20 +72,70 @@
             <span class="label">Score</span>
             <span id="score">0</span>
           </div>
+          <div class="hud-item">
+            <span class="label">Lobby</span>
+            <span id="lobby-display">—</span>
+          </div>
           <div class="hud-item lobby-status">
             <span id="snake-status" class="dot offline"></span> Snake
             <span id="apple-status" class="dot offline"></span> Apple
           </div>
+          <button id="settings-btn" type="button" class="settings-btn">Settings</button>
         </div>
 
-        <canvas id="board" width="600" height="400"></canvas>
+        <div class="board-wrap">
+          <canvas id="board" width="600" height="400" tabindex="0"></canvas>
 
-        <div id="overlay" class="overlay hidden">
-          <p id="overlay-text"></p>
-          <button id="restart-btn" type="button">Play again</button>
+          <div id="waiting-overlay" class="overlay waiting hidden">
+            <p id="waiting-text">Waiting for the other player…</p>
+            <button id="open-second-tab" type="button">Open second player tab</button>
+          </div>
+
+          <div id="overlay" class="overlay hidden">
+            <p id="overlay-text"></p>
+            <button id="restart-btn" type="button">Play again</button>
+          </div>
         </div>
 
         <p id="controls-hint" class="hint"></p>
+        <p id="cooldown-text" class="hint"></p>
+        <p id="status-text" class="hint"></p>
+      </section>
+
+      <section id="settings-screen" class="panel hidden">
+        <h2>Settings</h2>
+        <label class="settings-row">
+          <input type="checkbox" id="swap-controls" />
+          <span>Swap apple and snake controls</span>
+        </label>
+        <label>
+          Board style
+          <select id="board-style">
+            <option value="grid">Grid</option>
+            <option value="solid">Solid</option>
+            <option value="minimal">Minimal</option>
+          </select>
+        </label>
+        <label>
+          Board color
+          <input id="board-bg-color" type="color" value="#111827" />
+        </label>
+        <label>
+          Snake head color
+          <input id="snake-head-color" type="color" value="#4ade80" />
+        </label>
+        <label>
+          Snake body color
+          <input id="snake-body-color" type="color" value="#22c55e" />
+        </label>
+        <label>
+          Apple color
+          <input id="apple-color" type="color" value="#ef4444" />
+        </label>
+        <div class="settings-actions">
+          <button id="save-settings" type="button">Save</button>
+          <button id="close-settings" type="button">Close</button>
+        </div>
       </section>
     </div>
 

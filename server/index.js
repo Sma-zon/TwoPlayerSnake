@@ -7,6 +7,8 @@ const { Game } = require("./game");
 const PORT = process.env.PORT || 3000;
 const SNAKE_TICK_MS = 130;
 const APPLE_TICK_MS = 210;
+const LOBBY_CODE_LENGTH = 4;
+const LOBBY_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const app = express();
 const server = http.createServer(app);
@@ -14,102 +16,200 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-const game = new Game();
-let snakeSocketId = null;
-let appleSocketId = null;
-let snakeInterval = null;
-let appleInterval = null;
+const lobbies = new Map();
 
-function broadcastState() {
-  io.emit("state", game.getState());
+function buildLobbyCode() {
+  let code = "";
+  for (let i = 0; i < LOBBY_CODE_LENGTH; i += 1) {
+    code += LOBBY_CODE_CHARS[Math.floor(Math.random() * LOBBY_CODE_CHARS.length)];
+  }
+  return code;
 }
 
-function broadcastLobby() {
-  io.emit("lobby", {
-    snakeConnected: Boolean(snakeSocketId),
-    appleConnected: Boolean(appleSocketId),
-    gameRunning: Boolean(snakeInterval),
-  });
+function normalizeLobbyCode(value) {
+  if (!value) return "";
+  return String(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, LOBBY_CODE_LENGTH);
 }
 
-function startGameLoop() {
-  if (snakeInterval) return;
-
-  game.reset();
-
-  snakeInterval = setInterval(() => {
-    game.tickSnake();
-    broadcastState();
-  }, SNAKE_TICK_MS);
-
-  appleInterval = setInterval(() => {
-    game.tickApple();
-    broadcastState();
-  }, APPLE_TICK_MS);
+function createLobby(code) {
+  const lobbyCode = code || buildLobbyCode();
+  const lobby = {
+    code: lobbyCode,
+    game: new Game(),
+    snakeSocketId: null,
+    appleSocketId: null,
+    snakeInterval: null,
+    appleInterval: null,
+  };
+  lobbies.set(lobbyCode, lobby);
+  return lobby;
 }
 
-function stopGameLoop() {
-  if (snakeInterval) clearInterval(snakeInterval);
-  if (appleInterval) clearInterval(appleInterval);
-  snakeInterval = null;
-  appleInterval = null;
+function getLobby(code) {
+  if (!code) return null;
+  return lobbies.get(normalizeLobbyCode(code)) || null;
 }
 
-function assignRole(socket, requestedRole) {
-  if (requestedRole === "snake" && !snakeSocketId) {
-    snakeSocketId = socket.id;
+function getOrCreateLobby(code) {
+  if (!code) {
+    let lobby;
+    do {
+      lobby = createLobby();
+    } while (lobbies.has(lobby.code) && lobby.code);
+    return lobby;
+  }
+
+  const normalized = normalizeLobbyCode(code);
+  return lobbies.get(normalized) || null;
+}
+
+function pruneSocketRole(lobby, socket) {
+  if (!lobby) return;
+  if (socket.id === lobby.snakeSocketId) lobby.snakeSocketId = null;
+  if (socket.id === lobby.appleSocketId) lobby.appleSocketId = null;
+}
+
+function assignRole(lobby, socket, requestedRole) {
+  if (requestedRole === "snake" && !lobby.snakeSocketId) {
+    lobby.snakeSocketId = socket.id;
     return "snake";
   }
-  if (requestedRole === "apple" && !appleSocketId) {
-    appleSocketId = socket.id;
+  if (requestedRole === "apple" && !lobby.appleSocketId) {
+    lobby.appleSocketId = socket.id;
     return "apple";
   }
-  if (!snakeSocketId) {
-    snakeSocketId = socket.id;
+  if (!lobby.snakeSocketId) {
+    lobby.snakeSocketId = socket.id;
     return "snake";
   }
-  if (!appleSocketId) {
-    appleSocketId = socket.id;
+  if (!lobby.appleSocketId) {
+    lobby.appleSocketId = socket.id;
     return "apple";
   }
   return "spectator";
 }
 
-io.on("connection", (socket) => {
-  const role = assignRole(socket, socket.handshake.query.role);
-  socket.emit("assigned", { role });
-  broadcastLobby();
-  broadcastState();
+function getWaitingFor(lobby) {
+  if (lobby.snakeSocketId && !lobby.appleSocketId) return "apple";
+  if (lobby.appleSocketId && !lobby.snakeSocketId) return "snake";
+  return null;
+}
 
-  if (snakeSocketId && appleSocketId) {
-    startGameLoop();
+function broadcastLobby(lobby) {
+  const payload = {
+    code: lobby.code,
+    snakeConnected: Boolean(lobby.snakeSocketId),
+    appleConnected: Boolean(lobby.appleSocketId),
+    gameRunning: Boolean(lobby.snakeInterval),
+    waitingFor: getWaitingFor(lobby),
+  };
+  console.log("broadcastLobby", payload);
+  io.to(lobby.code).emit("lobby", payload);
+}
+
+function broadcastState(lobby) {
+  io.to(lobby.code).emit("state", {
+    ...lobby.game.getState(),
+    gameRunning: Boolean(lobby.snakeInterval),
+  });
+}
+
+function startGameLoop(lobby) {
+  if (lobby.snakeInterval) return;
+
+  lobby.game.reset();
+
+  lobby.snakeInterval = setInterval(() => {
+    lobby.game.tickSnake();
+    broadcastState(lobby);
+  }, SNAKE_TICK_MS);
+
+  lobby.appleInterval = setInterval(() => {
+    lobby.game.tickApple();
+    broadcastState(lobby);
+  }, APPLE_TICK_MS);
+}
+
+function stopGameLoop(lobby) {
+  if (lobby.snakeInterval) clearInterval(lobby.snakeInterval);
+  if (lobby.appleInterval) clearInterval(lobby.appleInterval);
+  lobby.snakeInterval = null;
+  lobby.appleInterval = null;
+}
+
+function cleanupLobby(lobby) {
+  const room = io.sockets.adapter.rooms.get(lobby.code);
+  if (!room || room.size === 0) {
+    lobbies.delete(lobby.code);
+  }
+}
+
+io.on("connection", (socket) => {
+  const requestedRole = socket.handshake.query.role;
+  const rawCode = String(socket.handshake.query.code || "").trim();
+  const requestedCode = rawCode ? normalizeLobbyCode(rawCode) : "";
+  const lobby = rawCode ? getLobby(requestedCode) : createLobby();
+
+  console.log("socket connect", {
+    id: socket.id,
+    role: requestedRole,
+    rawCode,
+    requestedCode,
+    lobbyCode: lobby?.code,
+  });
+
+  if (rawCode && (!requestedCode || requestedCode.length !== LOBBY_CODE_LENGTH || !lobby)) {
+    socket.emit("lobbyError", {
+      message: "Lobby not found. Please check the code and try again.",
+    });
+    socket.disconnect(true);
+    return;
+  }
+
+  socket.lobbyCode = lobby.code;
+  socket.join(lobby.code);
+
+  const role = assignRole(lobby, socket, requestedRole);
+  socket.emit("assigned", { role });
+  if (!requestedCode) {
+    socket.emit("lobbyCreated", { code: lobby.code });
+  }
+
+  broadcastLobby(lobby);
+  broadcastState(lobby);
+
+  if (lobby.snakeSocketId && lobby.appleSocketId) {
+    startGameLoop(lobby);
   }
 
   socket.on("snakeDirection", (dir) => {
-    if (socket.id !== snakeSocketId) return;
+    if (socket.id !== lobby.snakeSocketId) return;
     if (!dir || typeof dir.x !== "number" || typeof dir.y !== "number") return;
-    game.setSnakeDirection(dir);
+    lobby.game.setSnakeDirection(dir);
   });
 
   socket.on("appleDirection", (dir) => {
-    if (socket.id !== appleSocketId) return;
+    if (socket.id !== lobby.appleSocketId) return;
     if (!dir || typeof dir.x !== "number" || typeof dir.y !== "number") return;
-    game.setAppleDirection(dir);
+    lobby.game.setAppleDirection(dir);
   });
 
   socket.on("restart", () => {
-    if (socket.id !== snakeSocketId && socket.id !== appleSocketId) return;
-    if (!snakeSocketId || !appleSocketId) return;
-    game.reset();
-    broadcastState();
+    if (socket.id !== lobby.snakeSocketId && socket.id !== lobby.appleSocketId) return;
+    if (!lobby.snakeSocketId || !lobby.appleSocketId) return;
+    lobby.game.reset();
+    broadcastState(lobby);
   });
 
   socket.on("disconnect", () => {
-    if (socket.id === snakeSocketId) snakeSocketId = null;
-    if (socket.id === appleSocketId) appleSocketId = null;
-    stopGameLoop();
-    broadcastLobby();
-    broadcastState();
+    pruneSocketRole(lobby, socket);
+    stopGameLoop(lobby);
+    broadcastLobby(lobby);
+    broadcastState(lobby);
+    cleanupLobby(lobby);
   });
 });
 
