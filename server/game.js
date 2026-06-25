@@ -1,19 +1,26 @@
 const GRID_WIDTH = 30;
 const GRID_HEIGHT = 20;
-const APPLE_TYPES = [
-  "speed",
-  "fire",
-  "ghost",
-  "clone",
-  "teleport",
-  "mirror",
-  "green",
+const WIN_LENGTH = 40;
+const APPLE_TYPE_WEIGHTS = [
+  { type: "speed", weight: 13 },
+  { type: "fire", weight: 13 },
+  { type: "ghost", weight: 13 },
+  { type: "clone", weight: 13 },
+  { type: "teleport", weight: 13 },
+  { type: "green", weight: 14 },
+  { type: "mirror", weight: 6 },
 ];
 
 function randomEmptyCell(snake, exclude = []) {
   const occupied = new Set(snake.map((s) => `${s.x},${s.y}`));
   for (const item of exclude) {
-    if (item && typeof item.x === "number" && typeof item.y === "number") {
+    if (Array.isArray(item)) {
+      for (const sub of item) {
+        if (sub && typeof sub.x === "number" && typeof sub.y === "number") {
+          occupied.add(`${sub.x},${sub.y}`);
+        }
+      }
+    } else if (item && typeof item.x === "number" && typeof item.y === "number") {
       occupied.add(`${item.x},${item.y}`);
     }
   }
@@ -38,7 +45,19 @@ function createInitialSnake() {
 }
 
 function randomAppleType() {
-  return APPLE_TYPES[Math.floor(Math.random() * APPLE_TYPES.length)];
+  const totalWeight = APPLE_TYPE_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
+  let selection = Math.random() * totalWeight;
+  for (const entry of APPLE_TYPE_WEIGHTS) {
+    if (selection < entry.weight) {
+      return entry.type;
+    }
+    selection -= entry.weight;
+  }
+  return APPLE_TYPE_WEIGHTS[APPLE_TYPE_WEIGHTS.length - 1].type;
+}
+
+function getMirrorPosition(position) {
+  return { x: GRID_WIDTH - 1 - position.x, y: position.y };
 }
 
 function randomTeleportPosition(snake, direction) {
@@ -101,6 +120,7 @@ class Game {
     this.snakeFireTrail = [];
     this.apple = this.createApple();
     this.bonusApple = null;
+    this.mirrorSnake = null;
   }
 
   setSnakeDirection(dir) {
@@ -138,7 +158,21 @@ class Game {
 
   createApple() {
     const type = randomAppleType();
-    const apple = randomEmptyCell(this.snake, []);
+    let apple = randomEmptyCell(this.snake, [this.bonusApple, this.stealer?.body || []]);
+    if (type === "mirror") {
+      let attempts = 0;
+      while (
+        attempts < 100 &&
+        this.snake.some((segment) => {
+          const mirror = getMirrorPosition(apple);
+          return segment.x === mirror.x && segment.y === mirror.y;
+        })
+      ) {
+        apple = randomEmptyCell(this.snake, [this.bonusApple, this.stealer?.body || []]);
+        attempts += 1;
+      }
+    }
+
     const result = {
       x: apple.x,
       y: apple.y,
@@ -151,6 +185,9 @@ class Game {
       this.bonusApple = this.createBonusApple(result);
     } else {
       this.bonusApple = null;
+    }
+    if (type === "mirror") {
+      result.mirrorApple = getMirrorPosition(result);
     }
     return result;
   }
@@ -193,6 +230,11 @@ class Game {
     this.snakeFireTrail = this.snakeFireTrail.filter((entry) => entry.expiresAt > now);
     if (this.stealer && now >= this.stealerUntil) {
       this.stealer = null;
+    }
+    if (!this.isMirrorActive()) {
+      this.mirrorSnake = null;
+    } else {
+      this.mirrorSnake = this.snake.map((segment) => getMirrorPosition(segment));
     }
     if (this.isHeadSwapActive() && this.nextSwapAt === 0) {
       this.nextSwapAt = now + 6000;
@@ -238,10 +280,14 @@ class Game {
       this.score += 1;
       this.bonusApple = null;
       this.snake.unshift(newHead);
+      this.checkWinCondition();
       return;
     }
 
-    if (newHead.x === this.apple.x && newHead.y === this.apple.y) {
+    if (
+      (newHead.x === this.apple.x && newHead.y === this.apple.y) ||
+      (this.apple.type === "mirror" && this.apple.mirrorApple && newHead.x === this.apple.mirrorApple.x && newHead.y === this.apple.mirrorApple.y)
+    ) {
       // eat the apple immediately and apply its effects before checking fire collisions
       this.snake.unshift(newHead);
       this.handleAppleEaten();
@@ -254,6 +300,10 @@ class Game {
     }
 
     if (this.stealer && this.stealer.body.some((s) => s.x === newHead.x && s.y === newHead.y)) {
+      this.endGame("apple");
+      return;
+    }
+    if (this.mirrorSnake && this.mirrorSnake.some((segment) => segment.x === newHead.x && segment.y === newHead.y)) {
       this.endGame("apple");
       return;
     }
@@ -343,6 +393,9 @@ class Game {
     if (outOfBounds) {
       if (!this.canUseWallTeleport()) return;
       next = this.wrapCell(proposed);
+      if (this.apple.type === "mirror" && this.apple.mirrorApple && next.x === this.apple.mirrorApple.x && next.y === this.apple.mirrorApple.y) {
+        return;
+      }
     }
 
     const hitsSnake = this.snake.some((s) => s.x === next.x && s.y === next.y);
@@ -359,11 +412,14 @@ class Game {
     }
 
     if (this.apple.type === "fire") {
-      this.fireTrail.push({ x: prevPos.x, y: prevPos.y, expiresAt: Date.now() + 25000 });
+      this.fireTrail.push({ x: prevPos.x, y: prevPos.y, expiresAt: Date.now() + 10000 });
     }
 
     this.apple.x = next.x;
     this.apple.y = next.y;
+    if (this.apple.type === "mirror") {
+      this.apple.mirrorApple = getMirrorPosition(this.apple);
+    }
   }
 
   handleAppleEaten() {
@@ -387,6 +443,7 @@ class Game {
       this.nextSwapAt = Date.now() + 6000;
     } else if (type === "mirror") {
       this.mirroredControlsUntil = Date.now() + 10000;
+      this.mirrorSnake = this.snake.map((segment) => getMirrorPosition(segment));
     } else if (type === "green") {
       if (Math.random() < 0.5) {
         this.extendSnake(5);
@@ -396,6 +453,7 @@ class Game {
     }
 
     this.apple = this.createApple();
+    this.checkWinCondition();
   }
 
   extendSnake(amount) {
@@ -409,6 +467,13 @@ class Game {
     for (let i = 0; i < amount; i += 1) {
       if (this.snake.length <= 3) break;
       this.snake.pop();
+    }
+    this.checkWinCondition();
+  }
+
+  checkWinCondition() {
+    if (this.snake.length >= WIN_LENGTH) {
+      this.endGame("snake");
     }
   }
 
@@ -535,6 +600,7 @@ class Game {
       fireTrail: this.fireTrail,
       snakeFireTrail: this.snakeFireTrail,
       stealer: this.stealer,
+      mirrorSnake: this.mirrorSnake,
       score: this.score,
       gameOver: this.gameOver,
       winner: this.winner,

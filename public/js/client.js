@@ -44,24 +44,40 @@ const modeInputs = document.querySelectorAll('input[name="mode"]');
 const serverAddressLabel = document.getElementById("server-address-label");
 const lobbyCodeLabel = document.getElementById("lobby-code-label");
 
-const APPLE_TYPES = [
-  "speed",
-  "fire",
-  "ghost",
-  "clone",
-  "teleport",
-  "mirror",
-  "green",
+const APPLE_TYPE_WEIGHTS = [
+  { type: "speed", weight: 13 },
+  { type: "fire", weight: 13 },
+  { type: "ghost", weight: 13 },
+  { type: "clone", weight: 13 },
+  { type: "teleport", weight: 13 },
+  { type: "green", weight: 14 },
+  { type: "mirror", weight: 6 },
 ];
 
 function randomAppleType() {
-  return APPLE_TYPES[Math.floor(Math.random() * APPLE_TYPES.length)];
+  const totalWeight = APPLE_TYPE_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
+  let selection = Math.random() * totalWeight;
+  for (const entry of APPLE_TYPE_WEIGHTS) {
+    if (selection < entry.weight) return entry.type;
+    selection -= entry.weight;
+  }
+  return APPLE_TYPE_WEIGHTS[APPLE_TYPE_WEIGHTS.length - 1].type;
+}
+
+function getMirrorPosition(position) {
+  return { x: GRID_WIDTH - 1 - position.x, y: position.y };
 }
 
 function randomEmptyCell(snake, exclude = []) {
   const occupied = new Set(snake.map((segment) => `${segment.x},${segment.y}`));
   for (const item of exclude) {
-    if (item && typeof item.x === "number" && typeof item.y === "number") {
+    if (Array.isArray(item)) {
+      for (const sub of item) {
+        if (sub && typeof sub.x === "number" && typeof sub.y === "number") {
+          occupied.add(`${sub.x},${sub.y}`);
+        }
+      }
+    } else if (item && typeof item.x === "number" && typeof item.y === "number") {
       occupied.add(`${item.x},${item.y}`);
     }
   }
@@ -190,6 +206,7 @@ class LocalGame {
     this.snakeFireTrail = [];
     this.apple = this.createApple();
     this.bonusApple = null;
+    this.mirrorSnake = null;
   }
 
   createInitialSnake() {
@@ -221,6 +238,9 @@ class LocalGame {
       this.bonusApple = this.randomEmptyCell([apple]);
     } else {
       this.bonusApple = null;
+    }
+    if (type === "mirror") {
+      apple.mirrorApple = getMirrorPosition(apple);
     }
     return apple;
   }
@@ -259,6 +279,11 @@ class LocalGame {
     this.snakeFireTrail = this.snakeFireTrail.filter((entry) => entry.expiresAt > now);
     if (this.stealer && now >= this.stealerUntil) {
       this.stealer = null;
+    }
+    if (this.isMirrorActive()) {
+      this.mirrorSnake = this.snake.map((segment) => getMirrorPosition(segment));
+    } else {
+      this.mirrorSnake = null;
     }
   }
 
@@ -312,6 +337,7 @@ class LocalGame {
       this.score += 1;
       this.bonusApple = null;
       this.snake.unshift(newHead);
+      this.checkWinCondition();
       return;
     }
 
@@ -322,6 +348,10 @@ class LocalGame {
     }
 
     if (!this.isImmune() && this.snake.some((s) => s.x === newHead.x && s.y === newHead.y)) {
+      this.endGame("apple");
+      return;
+    }
+    if (this.mirrorSnake && this.mirrorSnake.some((segment) => segment.x === newHead.x && segment.y === newHead.y)) {
       this.endGame("apple");
       return;
     }
@@ -370,6 +400,9 @@ class LocalGame {
       this.apple.x = position.x;
       this.apple.y = position.y;
       this.apple.nextTeleportAt = Date.now() + 5000;
+      if (this.apple.type === "mirror") {
+        this.apple.mirrorApple = getMirrorPosition(this.apple);
+      }
     }
 
     this.appleDirection = { ...this.pendingAppleDirection };
@@ -419,10 +452,17 @@ class LocalGame {
     if (outOfBounds) {
       if (!this.canUseWallTeleport()) return;
       next = this.wrapCell(proposed);
+      if (this.apple.type === "mirror" && this.apple.mirrorApple && next.x === this.apple.mirrorApple.x && next.y === this.apple.mirrorApple.y) {
+        return;
+      }
     }
 
     const hitsSnake = this.snake.some((segment) => segment.x === next.x && segment.y === next.y);
     if (hitsSnake && this.apple.type !== "ghost") {
+      return;
+    }
+
+    if (this.apple.type === "mirror" && this.apple.mirrorApple && next.x === this.apple.mirrorApple.x && next.y === this.apple.mirrorApple.y) {
       return;
     }
 
@@ -440,6 +480,9 @@ class LocalGame {
 
     this.apple.x = next.x;
     this.apple.y = next.y;
+    if (this.apple.type === "mirror") {
+      this.apple.mirrorApple = getMirrorPosition(this.apple);
+    }
   }
 
   handleAppleEaten() {
@@ -463,6 +506,7 @@ class LocalGame {
       this.nextSwapAt = Date.now() + 6000;
     } else if (type === "mirror") {
       this.mirroredControlsUntil = Date.now() + 10000;
+      this.mirrorSnake = this.snake.map((segment) => getMirrorPosition(segment));
     } else if (type === "green") {
       if (Math.random() < 0.5) {
         this.extendSnake(5);
@@ -472,6 +516,13 @@ class LocalGame {
     }
 
     this.apple = this.createApple();
+    this.checkWinCondition();
+  }
+
+  checkWinCondition() {
+    if (this.snake.length >= 40) {
+      this.endGame("snake");
+    }
   }
 
   extendSnake(amount) {
@@ -479,6 +530,7 @@ class LocalGame {
     for (let i = 0; i < amount; i += 1) {
       this.snake.push({ x: tail.x, y: tail.y });
     }
+    this.checkWinCondition();
   }
 
   shrinkSnake(amount) {
@@ -486,6 +538,7 @@ class LocalGame {
       if (this.snake.length <= 3) break;
       this.snake.pop();
     }
+    this.checkWinCondition();
   }
 
   tickStealer() {
@@ -509,13 +562,10 @@ class LocalGame {
     const next = this.wrapCell({ x: head.x + moveX, y: head.y + moveY });
 
     this.stealer.body.unshift(next);
-    this.stealer.body.pop();
     this.stealer.direction = { x: next.x - head.x, y: next.y - head.y };
 
     const ateBonus = this.bonusApple && next.x === this.bonusApple.x && next.y === this.bonusApple.y;
     const ateApple = next.x === this.apple.x && next.y === this.apple.y;
-
-    this.stealer.body.unshift(next);
     if (!ateBonus && !ateApple) {
       this.stealer.body.pop();
     }
@@ -539,6 +589,7 @@ class LocalGame {
       fireTrail: this.fireTrail,
       snakeFireTrail: this.snakeFireTrail,
       stealer: this.stealer,
+      mirrorSnake: this.mirrorSnake,
       score: this.score,
       gameOver: this.gameOver,
       winner: this.winner,
